@@ -1,0 +1,26 @@
+{
+  "name": "Yuki — Anime AI Girlfriend",
+  "short_name": "Yuki",
+  "description": "Your anime AI girlfriend who texts back, changes expression and follows you to your favourite places.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#120a14",
+  "theme_color": "#120a14",
+  "categories": ["entertainment", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "562x562",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
