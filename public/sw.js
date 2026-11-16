@@ -1,5 +1,5 @@
 /* Yuki service worker — app shell caching + notification handling. */
-const VERSION = 'yuki-v1'
+const VERSION = 'yuki-v2'
 const SHELL = ['/', '/index.html', '/icon.png', '/manifest.webmanifest']
 
 self.addEventListener('install', (event) => {
@@ -41,17 +41,17 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // Network-first for hashed/static assets so updates take effect, with cache fallback.
   event.respondWith(
-    caches.match(request).then((hit) => {
-      if (hit) return hit
-      return fetch(request).then((res) => {
+    fetch(request)
+      .then((res) => {
         if (res.ok) {
           const copy = res.clone()
           caches.open(VERSION).then((c) => c.put(request, copy)).catch(() => {})
         }
         return res
       })
-    })
+      .catch(() => caches.match(request).then((hit) => hit || Response.error()))
   )
 })
 
