@@ -116,6 +116,20 @@ java -cp "$R8_JAR" com.android.tools.r8.D8 \
 
 (cd "$OUT/dex" && zip -qj "$OUT/apk/base.apk" classes.dex)
 
+echo "→ packing native libraries"
+if [ -d "$ROOT/android/jniLibs" ]; then
+  STAGE=$(mktemp -d)
+  mkdir -p "$STAGE/lib/arm64-v8a"
+  cp "$ROOT"/android/jniLibs/arm64-v8a/*.so "$STAGE/lib/arm64-v8a/"
+  (cd "$STAGE" && zip -q "$OUT/apk/base.apk" lib/arm64-v8a/*.so)
+  rm -rf "$STAGE"
+  for f in "$ROOT"/android/jniLibs/arm64-v8a/*.so; do
+    echo "    lib/arm64-v8a/$(basename "$f")"
+  done
+else
+  echo "    ⚠ android/jniLibs missing — Offline AI will not work" >&2
+fi
+
 echo "→ aligning + signing"
 zipalign -f 4 "$OUT/apk/base.apk" "$OUT/apk/aligned.apk"
 

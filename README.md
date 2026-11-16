@@ -98,3 +98,26 @@ proxies Nomi + Koolbase so the browser never sees the secret keys.
 
 Android shell lives in `android/` (one `WebView`, a small native HTTP proxy in
 `ApiBridge.java`, native TTS and notifications). Web app source is in `src/`.
+
+## Offline AI (on this phone)
+
+Yuki can run a **real** language model entirely on your phone — no keys, no
+servers, no subscriptions, no extra apps.
+
+- **Model:** Qwen 2.5 1.5B Instruct, 4-bit Q4_K_M GGUF (~1.1 GB download,
+  needs ~1.5 GB free and ~3 GB RAM). Stored in the app's private files;
+  checksum-verified after download.
+- **Runtime:** llama.cpp, CPU inference (no GPU required), compiled into the
+  APK as `libyuki_llm.so` + `libc++_shared.so` (arm64-v8a).
+- **How to enable:** Settings → *Her brain* → **🧠 Offline AI (this phone)** →
+  **Download AI**. Progress is shown in-app; cancellation, retry, SHA-256
+  verification and deletion are supported. Once installed, she answers offline
+  using your persona, memory, mood and scene.
+- **Chats are separate:** switching engines never touches the other engine's
+  history; both modes share your saved personas, threads and memories.
+- **Nomi AI Online mode is unchanged.**
+- Conversations and memories are still stored locally on the device.
+
+Rebuild the native library with `./scripts/build-llm.sh /path/to/llama.cpp`
+(cross-compiles llama.cpp for Android arm64; see the script header) and then
+`./scripts/build-apk.sh` to pack it into `apk/Yuki.apk`.

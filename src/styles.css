@@ -2302,3 +2302,32 @@ p {
     border-right: 1px solid var(--line);
   }
 }
+
+/* ----------------------------------------------------------- offline AI */
+.local-ai-card .setting-row {
+  border-top: 0;
+  padding-bottom: 0;
+}
+
+.local-ai-card .pill.ok {
+  background: rgba(120, 255, 170, 0.18);
+  color: #7dffa6;
+}
+
+.ai-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  margin: 4px 0 8px;
+}
+
+.ai-note {
+  margin: 6px 0 4px;
+}
+
+.error-note {
+  color: #ff8a95;
+  margin-top: 8px;
+}

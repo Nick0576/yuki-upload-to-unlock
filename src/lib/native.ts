@@ -8,13 +8,22 @@
 
 type HttpBridge = (id: string, method: string, path: string, headers: string, body: string) => void
 
-interface NativeShell {
+export interface NativeShell {
   http: HttpBridge
   speak: (text: string, rate: number, pitch: number) => void
   stopSpeak: () => void
   toast: (text: string) => void
   notify: (title: string, body: string) => void
   requestNotify: () => void
+  aiStatus: () => string
+  aiDownload: (id: string) => void
+  aiCancelDownload: () => void
+  aiDelete: (id: string) => void
+  aiLoad: (id: string) => void
+  aiUnload: () => void
+  aiGenerate: (id: string, prompt: string, maxTokens: number, temp: number, topP: number, topK: number) => void
+  aiCancel: (id: string) => void
+  aiPrompt: (system: string, history: string) => string
 }
 
 declare global {

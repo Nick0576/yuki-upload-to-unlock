@@ -342,7 +342,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       busyRef.current = true
 
       let text = ''
-      let source: 'nomi' | 'offline' = 'offline'
+      let source: 'nomi' | 'offline' | 'local' = 'offline'
       try {
         const res = await askYuki({
           message: userText,
@@ -355,7 +355,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         source = res.source
       } catch (err) {
         console.warn('[yuki] reply failed', err)
-        text = 'Sorry… I lost my train of thought. Say that again?'
+        const reason = String((err as Error)?.message || '')
+        const local = current.settings.aiMode === 'local'
+        if (local && /not_installed|load_failed|load_timeout|unsupported|local_empty_local_reply/.test(reason)) {
+          text =
+            'Offline AI needs its model first — open Settings → Her brain → Download AI. I will be here.'
+        } else {
+          text = 'Sorry… I lost my train of thought. Say that again?'
+        }
       }
       setTyping(false)
       if (stopRef.current) {

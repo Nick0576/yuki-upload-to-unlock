@@ -1,6 +1,13 @@
 import { offlineReply } from './engine'
 import { apiFetch } from './native'
-import { buildNomiBrief } from './persona'
+import { buildBrief, buildNomiBrief } from './persona'
+import {
+  buildChatPrompt,
+  encodeHistory,
+  ensureLocalModel,
+  localGenerate,
+  nativeChatPrompt,
+} from './localai'
 import type { Persona, Settings, Thread } from './types'
 
 export interface AskArgs {
@@ -14,7 +21,7 @@ export interface AskArgs {
 
 export interface AskResult {
   text: string
-  source: 'nomi' | 'offline'
+  source: 'nomi' | 'offline' | 'local'
 }
 
 /** Roleplay threads keep *action* narration; normal chats get clean text. */
@@ -39,9 +46,63 @@ export function tidy(text: string, roleplay: boolean): string {
   return out
 }
 
+/** Local llama.cpp engine: full prompt, no cloud, no length limit. */
+async function askLocal(args: AskArgs): Promise<AskResult> {
+  await ensureLocalModel()
+
+  const { thread, persona, userName, settings } = args
+  const brief = buildBrief({
+    persona,
+    thread,
+    userName,
+    spicy: settings.spicy,
+    region: settings.region,
+    language: settings.language,
+  })
+
+  const pairs: Array<[string, string]> = []
+  for (const m of thread.messages.filter((x) => !x.deletedForBoth && !x.deletedForMe)) {
+    if (m.role !== 'user' && m.role !== 'yuki') continue
+    pairs.push([m.role === 'user' ? 'user' : 'assistant', m.text.slice(-400)])
+    if (pairs.length >= 8) break
+  }
+  pairs.push(['user', args.message])
+
+  const system = `${brief}\n\nReply as ${persona.name} in the first person, in ${
+    settings.language === 'tl' ? 'casual Tagalog/Taglish' : 'English'
+  }. Keep it short and natural.`
+
+  const templated = nativeChatPrompt(system, encodeHistory(pairs))
+  const prompt = templated || buildChatPrompt(system, pairs)
+
+  let text = ''
+  const gen = localGenerate(prompt, {
+    maxTokens: 180,
+    temperature: 0.85,
+    topP: 0.9,
+    topK: 40,
+    signal: args.signal,
+  })
+  for await (const tok of gen) text += tok
+
+  const clean = text.trim()
+  if (!clean) throw new Error('empty_local_reply')
+  return { text: tidy(clean, isRoleplay(thread)), source: 'local' }
+}
+
 export async function askYuki(args: AskArgs): Promise<AskResult> {
   const { settings } = args
   const MAX = 390
+
+  if (settings.aiMode === 'local') {
+    try {
+      return await askLocal(args)
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') throw err
+      console.warn('[yuki] local AI failed', err)
+      throw new Error(`local_${(err as Error)?.message || 'failed'}`)
+    }
+  }
 
   if (settings.aiMode === 'nomi') {
     const head = buildNomiBrief({

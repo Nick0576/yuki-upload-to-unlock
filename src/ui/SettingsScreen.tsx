@@ -3,6 +3,15 @@ import { THEMES } from '../lib/content'
 import { notificationPermission, requestNotifications } from '../lib/notify'
 import { useT } from '../lib/i18n'
 import { getAgeDeclined, wipeDB } from '../lib/storage'
+import {
+  localCancelDownload,
+  localDelete,
+  localDownload,
+  localStatus,
+  useDownloadProgress,
+  useLocalStatus,
+} from '../lib/localai'
+import { speak } from '../lib/tts'
 import { useApp } from '../store'
 import { Confirm, PromptDialog, Sheet } from './Sheet'
 
@@ -105,12 +114,7 @@ export function SettingsScreen({ onPersona }: { onPersona: () => void }) {
             on={s.autoSpeak}
             onChange={(v) => {
               setSettings({ autoSpeak: v })
-              if (v) {
-                const u = new SpeechSynthesisUtterance('Hi. This is how I sound.')
-                u.pitch = 1.35
-                u.rate = 1.05
-                speechSynthesis.speak(u)
-              }
+              if (v) speak('Hi. This is how I sound.', { rate: 1.05, pitch: 1.35 })
             }}
           />
         </section>
@@ -152,12 +156,17 @@ export function SettingsScreen({ onPersona }: { onPersona: () => void }) {
                 ☁︎ Nomi
               </button>
               <button className={s.aiMode === 'offline' ? 'on' : ''} onClick={() => setSettings({ aiMode: 'offline' })}>
-                📴 Offline
+                📴 {t('settings.aiOffline')}
+              </button>
+              <button className={s.aiMode === 'local' ? 'on' : ''} onClick={() => setSettings({ aiMode: 'local' })}>
+                🧠 {t('settings.aiLocal')}
               </button>
             </div>
           </div>
           <p className="tiny muted">{t('settings.aiHint')}</p>
         </section>
+
+        <LocalAICard onEnable={() => setSettings({ aiMode: 'local' })} />
 
         <section className="card">
           <h3 className="section-title">{t('settings.data')}</h3>
@@ -280,6 +289,135 @@ export function SettingsScreen({ onPersona }: { onPersona: () => void }) {
         onClose={() => setConfirmClear(false)}
       />
     </div>
+  )
+}
+
+const GB = 1024 * 1024 * 1024
+
+function fmtBytes(n: number): string {
+  if (!n) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.min(units.length - 1, Math.floor(Math.log2(n) / 10))
+  return `${(n / 2 ** (10 * i)).toFixed(i >= 3 ? 2 : 0)} ${units[i]}`
+}
+
+function LocalAICard({ onEnable }: { onEnable: () => void }) {
+  const t = useT()
+  const { toast, db } = useApp()
+  const status = useLocalStatus()
+  const progress = useDownloadProgress()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const model = status.models[0]
+  const total = progress.total || model?.size || 0
+  const percent = total > 0 ? Math.min(100, Math.round((progress.bytes / total) * 100)) : 0
+  const downloading = Boolean(model && progress.id === model.id && total > 0 && progress.bytes < total)
+  const installed = status.installed
+  const lowStorage = status.free > 0 && status.free < 1.5 * GB
+  const lowRam = status.totalRam > 0 && status.totalRam < 3.5 * GB
+
+  async function download() {
+    if (!model) return
+    toast(t('ai.downloading'))
+    const ok = await localDownload(model.id)
+    if (ok) {
+      toast(t('ai.installed'))
+      onEnable()
+    } else if (localStatus().error === 'checksum_mismatch') {
+      toast(t('ai.checksum'), 'error')
+    } else if (localStatus().error !== 'not_enough_storage' && localStatus().error !== 'download_cancelled') {
+      toast(t('ai.failed'), 'error')
+    }
+  }
+
+  if (!status.supported) {
+    return (
+      <section className="card local-ai-card">
+        <h3 className="section-title">🧠 {t('ai.title')}</h3>
+        <p className="tiny muted">{t('ai.subtitle')}</p>
+        <p className="tiny muted">Available inside the Android app.</p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="card local-ai-card">
+      <h3 className="section-title">🧠 {t('ai.title')}</h3>
+      <p className="tiny muted">{t('ai.subtitle')}</p>
+
+      <div className="setting-row">
+        <div>
+          <strong>{model?.name || 'Qwen 2.5 1.5B'}</strong>
+          <span className="tiny muted">{t('ai.required')} · 1.1 GB</span>
+        </div>
+        <span className={`pill ${installed ? 'ok' : ''}`}>{installed ? '✓' : '—'}</span>
+      </div>
+
+      {installed ? (
+        <>
+          <p className="tiny muted ai-note">{status.loading ? t('ai.loading') : t('ai.installed')}</p>
+          <div className="ai-meta">
+            <span>{db.persona.name}</span>
+            <span className="tiny muted">{t('ai.history')}</span>
+          </div>
+          <div className="row gap">
+            {db.settings.aiMode !== 'local' && (
+              <button className="btn primary grow" onClick={onEnable}>
+                🧠 {t('settings.aiLocal')}
+              </button>
+            )}
+            <button className="btn ghost grow" onClick={() => setConfirmDelete(true)}>
+              {t('ai.delete')}
+            </button>
+          </div>
+        </>
+      ) : downloading ? (
+        <>
+          <div className="meter" style={{ margin: '6px 0 8px' }}>
+            <div className="meter-fill" style={{ width: `${percent}%` }} />
+          </div>
+          <div className="ai-meta">
+            <span>{t('ai.downloading')} {percent}%</span>
+            <span className="tiny muted">
+              {fmtBytes(progress.bytes)} / {fmtBytes(total)}
+            </span>
+          </div>
+          <button className="btn ghost wide" onClick={localCancelDownload}>
+            {t('ai.cancel')}
+          </button>
+        </>
+      ) : (
+        <>
+          <button className="btn primary wide" onClick={download} disabled={lowStorage}>
+            ⬇ {t('ai.download')} <span className="tiny">1.1 GB</span>
+          </button>
+          {status.error === 'not_enough_storage' && (
+            <p className="tiny error-note">{t('ai.lowStorage')} · {fmtBytes(status.free)} free</p>
+          )}
+          {status.error === 'checksum_mismatch' && <p className="tiny error-note">{t('ai.checksum')}</p>}
+          {status.error === 'download_failed' && (
+            <button className="btn ghost wide" onClick={download}>
+              {t('ai.retry')}
+            </button>
+          )}
+        </>
+      )}
+
+      {lowRam && <p className="tiny muted">⚠ {t('ai.lowRam')}</p>}
+
+      <Confirm
+        open={confirmDelete}
+        title={t('ai.delete')}
+        message={t('settings.clearAllBody')}
+        confirmLabel={t('common.delete')}
+        danger
+        onConfirm={() => {
+          if (model) localDelete(model.id)
+          toast(t('settings.saved'))
+        }}
+        onClose={() => setConfirmDelete(false)}
+      />
+    </section>
   )
 }
 

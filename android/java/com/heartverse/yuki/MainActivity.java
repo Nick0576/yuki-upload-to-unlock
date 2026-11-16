@@ -36,6 +36,7 @@ public class MainActivity extends Activity {
 
   private WebView web;
   private ApiBridge api;
+  private LocalAI local;
   private TextToSpeech tts;
   private String pendingSpeech;
   private boolean ttsReady;
@@ -63,6 +64,7 @@ public class MainActivity extends Activity {
 
     web.setWebViewClient(new AssetClient());
     api = new ApiBridge(web);
+    local = new LocalAI(this, web);
     web.addJavascriptInterface(new Bridge(), "__yuki");
 
     initTts();
@@ -213,6 +215,51 @@ public class MainActivity extends Activity {
     }
 
     @JavascriptInterface
+    public String aiStatus() {
+      return localStatus();
+    }
+
+    @JavascriptInterface
+    public void aiDownload(String id) {
+      local.download(id);
+    }
+
+    @JavascriptInterface
+    public void aiCancelDownload() {
+      local.cancelDownload();
+    }
+
+    @JavascriptInterface
+    public void aiDelete(String id) {
+      local.delete(id);
+    }
+
+    @JavascriptInterface
+    public void aiLoad(String id) {
+      local.load(id);
+    }
+
+    @JavascriptInterface
+    public void aiUnload() {
+      local.unload();
+    }
+
+    @JavascriptInterface
+    public void aiGenerate(String id, String prompt, int maxTokens, float temp, float topP, float topK) {
+      local.generate(id, prompt, maxTokens, temp, topP, topK);
+    }
+
+    @JavascriptInterface
+    public void aiCancel(String id) {
+      local.cancel(id);
+    }
+
+    @JavascriptInterface
+    public String aiPrompt(String system, String history) {
+      return localPrompt(system, history);
+    }
+
+    @JavascriptInterface
     public void requestNotify() {
       runOnUiThread(new Runnable() {
         @Override
@@ -313,6 +360,22 @@ public class MainActivity extends Activity {
       nm.notify(1001, b.build());
     } catch (Exception ignored) {
       /* notifications blocked */
+    }
+  }
+
+  private String localStatus() {
+    try {
+      return local.status().toString();
+    } catch (Exception e) {
+      return "{}";
+    }
+  }
+
+  private String localPrompt(String system, String history) {
+    try {
+      return local.prompt(system, history);
+    } catch (Exception e) {
+      return "";
     }
   }
 

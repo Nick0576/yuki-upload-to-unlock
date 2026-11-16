@@ -62,7 +62,7 @@ export interface Settings {
   autoSpeak: boolean
   notifications: boolean
   proactiveMinutes: number
-  aiMode: 'nomi' | 'offline'
+  aiMode: 'nomi' | 'offline' | 'local'
   nomisId: string
   region: 'ph' | 'jp'
 }
